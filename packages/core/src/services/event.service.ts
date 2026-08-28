@@ -53,6 +53,10 @@ export class EventService {
     );
   }
 
+  async count(filters: Filter[]): Promise<number> {
+    return await this.eventRepository.count(filters);
+  }
+
   async handleEvent(event: Event): Promise<HandleEventResult> {
     const beforeHandleEventResult =
       await this.pluginManagerService.beforeHandleEvent(event);

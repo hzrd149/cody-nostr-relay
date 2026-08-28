@@ -31,6 +31,7 @@ describe('eventService', () => {
       isSearchSupported: jest.fn().mockReturnValue(false),
       upsert: jest.fn(),
       find: jest.fn(),
+      count: jest.fn(),
       findOne: jest.fn(),
       deleteByDeletionRequest: jest.fn(),
       destroy: jest.fn(),

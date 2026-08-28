@@ -44,6 +44,15 @@ export abstract class EventRepository {
   abstract find(filter: Filter): Promise<Event[]> | Observable<Event> | Event[];
 
   /**
+   * Count distinct events matching any of the filters (NIP-45).
+   * Repositories may override this method to opt into COUNT support.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async count(filters: Filter[]): Promise<number> {
+    throw new Error('unsupported: COUNT is not supported by this repository');
+  }
+
+  /**
    * This method is called when the event repository should be closed. You can
    * release resources in this method.
    */

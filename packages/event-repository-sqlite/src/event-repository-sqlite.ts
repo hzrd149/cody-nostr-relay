@@ -287,6 +287,38 @@ export class EventRepositorySqlite extends EventRepository {
     return rows.map(this.toEvent);
   }
 
+  async count(filters: Filter[]): Promise<number> {
+    if (filters.length === 0) return 0;
+
+    const queries = filters.map(filter => {
+      const genericTags = this.extractGenericTagsCollectionFrom(filter);
+      if (!filter.ids?.length && genericTags.length > 2) {
+        throw new Error(
+          'unsupported: filters with more than two tag attributes are not supported',
+        );
+      }
+
+      let query = this.createSelectQuery(filter).select('e.id').distinct();
+      if (filter.limit !== undefined) {
+        query = query.limit(Math.min(filter.limit, this.maxLimit));
+      }
+      return this.db
+        .selectFrom(query.as('limited_events'))
+        .select('limited_events.id');
+    });
+
+    let matchingEventsQuery = queries[0];
+    for (const query of queries.slice(1)) {
+      matchingEventsQuery = matchingEventsQuery.union(query);
+    }
+
+    const row = await this.db
+      .selectFrom(matchingEventsQuery.as('matching_events'))
+      .select(eb => eb.fn.countAll<number>().as('count'))
+      .executeTakeFirstOrThrow();
+    return Number(row.count);
+  }
+
   async deleteByDeletionRequest(event: Event): Promise<void> {
     const author = EventUtils.getAuthor(event);
     const idSet = new Set<string>();

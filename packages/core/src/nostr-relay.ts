@@ -10,6 +10,7 @@ import {
   FilterUtils,
   HandleAuthMessageResult,
   HandleCloseMessageResult,
+  HandleCountMessageResult,
   HandleEventMessageResult,
   HandleEventResult,
   HandleMessageResult,
@@ -23,6 +24,7 @@ import {
   UnauthenticatedError,
   createOutgoingAuthMessage,
   createOutgoingClosedMessage,
+  createOutgoingCountMessage,
   createOutgoingEoseMessage,
   createOutgoingEventMessage,
   createOutgoingNoticeMessage,
@@ -163,6 +165,14 @@ export class NostrRelay {
         ...result,
       };
     }
+    if (message[0] === MessageType.COUNT) {
+      const [, queryId, ...filters] = message;
+      const result = await this.handleCountMessage(ctx, queryId, filters);
+      return {
+        messageType: MessageType.COUNT,
+        ...result,
+      };
+    }
     if (message[0] === MessageType.CLOSE) {
       const [, subscriptionId] = message;
       const result = this.handleCloseMessage(ctx, subscriptionId);
@@ -223,6 +233,22 @@ export class NostrRelay {
         ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
       }
       return { events: [] };
+    }
+  }
+
+  private async handleCountMessage(
+    ctx: ClientContext,
+    queryId: SubscriptionId,
+    filters: Filter[],
+  ): Promise<HandleCountMessageResult> {
+    try {
+      const count = await this.countEvents(filters);
+      ctx.sendMessage(createOutgoingCountMessage(queryId, count));
+      return { count };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'error: unknown';
+      ctx.sendMessage(createOutgoingClosedMessage(queryId, message));
+      return { count: 0 };
     }
   }
 
@@ -342,6 +368,21 @@ export class NostrRelay {
         complete: () => resolve(events),
       });
     });
+  }
+
+  /** Count distinct stored events matching any filter (NIP-45). */
+  async countEvents(filters: Filter[]): Promise<number> {
+    if (
+      this.hostname &&
+      filters.some(filter =>
+        FilterUtils.canIncludeEncryptedDirectMessageKind(filter),
+      )
+    ) {
+      throw new Error(
+        'restricted: encrypted direct message counts are not supported',
+      );
+    }
+    return await this.eventService.count(filters);
   }
 
   private getClientContext(client: Client, ip?: string): ClientContext {
