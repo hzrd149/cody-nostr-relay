@@ -332,7 +332,7 @@ describe('NostrRelay', () => {
       ]);
 
       expect(result).toEqual({ messageType: MessageType.COUNT, count: 3 });
-      expect(mockCount).toHaveBeenCalledWith(filters);
+      expect(mockCount).toHaveBeenCalledWith(filters, [4]);
       expect(mockSubscribe).not.toHaveBeenCalled();
       expect(client.send).toHaveBeenCalledTimes(1);
       expect(client.send).toHaveBeenCalledWith(
@@ -353,7 +353,10 @@ describe('NostrRelay', () => {
         { kinds: [1] },
       ]);
 
-      expect(result).toEqual({ messageType: MessageType.COUNT, count: 0 });
+      expect(result).toEqual({
+        messageType: MessageType.COUNT,
+        error: 'unsupported: COUNT is not supported by this repository',
+      });
       expect(client.send).toHaveBeenCalledWith(
         JSON.stringify([
           MessageType.CLOSED,
@@ -363,23 +366,69 @@ describe('NostrRelay', () => {
       );
     });
 
-    it('should refuse counts that could reveal encrypted direct messages', async () => {
+    it('should request authentication when a count could reveal encrypted direct messages', async () => {
       const mockCount = jest.spyOn(nostrRelay['eventService'], 'count');
+      const ctx = nostrRelay['getClientContext'](client);
 
-      await nostrRelay.handleMessage(client, [
+      const result = await nostrRelay.handleMessage(client, [
         MessageType.COUNT,
         'queryId',
         {},
       ]);
 
       expect(mockCount).not.toHaveBeenCalled();
-      expect(client.send).toHaveBeenCalledWith(
+      expect(result).toEqual({
+        messageType: MessageType.COUNT,
+        error:
+          "restricted: we can't serve counts that may include DMs to unauthenticated users, does your client implement NIP-42?",
+      });
+      expect(client.send).toHaveBeenNthCalledWith(
+        1,
         JSON.stringify([
           MessageType.CLOSED,
           'queryId',
-          'restricted: encrypted direct message counts are not supported',
+          "restricted: we can't serve counts that may include DMs to unauthenticated users, does your client implement NIP-42?",
         ]),
       );
+      expect(client.send).toHaveBeenNthCalledWith(
+        2,
+        JSON.stringify([MessageType.AUTH, ctx.id]),
+      );
+    });
+
+    it('should allow authenticated unrestricted counts while excluding DMs', async () => {
+      const ctx = nostrRelay['getClientContext'](client);
+      ctx.pubkey = 'pubkey';
+      const mockCount = jest
+        .spyOn(nostrRelay['eventService'], 'count')
+        .mockResolvedValue(2);
+
+      const result = await nostrRelay.handleMessage(client, [
+        MessageType.COUNT,
+        'queryId',
+        { kinds: [] },
+      ]);
+
+      expect(result).toEqual({ messageType: MessageType.COUNT, count: 2 });
+      expect(mockCount).toHaveBeenCalledWith([{ kinds: [] }], [4]);
+    });
+
+    it('should refuse explicit encrypted direct message counts', async () => {
+      const ctx = nostrRelay['getClientContext'](client);
+      ctx.pubkey = 'pubkey';
+      const mockCount = jest.spyOn(nostrRelay['eventService'], 'count');
+
+      const result = await nostrRelay.handleMessage(client, [
+        MessageType.COUNT,
+        'queryId',
+        { kinds: [4] },
+      ]);
+
+      expect(result).toEqual({
+        messageType: MessageType.COUNT,
+        error: 'restricted: encrypted direct message counts are not supported',
+      });
+      expect(mockCount).not.toHaveBeenCalled();
     });
   });
 

@@ -150,7 +150,17 @@ describe('eventService', () => {
       jest.spyOn(eventRepository, 'count').mockResolvedValue(2);
 
       expect(await eventService.count(filters)).toBe(2);
-      expect(eventRepository.count).toHaveBeenCalledWith(filters);
+      expect(eventRepository.count).toHaveBeenCalledWith(filters, []);
+    });
+
+    it('should skip search filters when the repository does not support search', async () => {
+      const supportedFilter = { kinds: [EventKind.TEXT_NOTE] };
+      jest.spyOn(eventRepository, 'count').mockResolvedValue(1);
+
+      expect(
+        await eventService.count([{ search: 'nostr' }, supportedFilter]),
+      ).toBe(1);
+      expect(eventRepository.count).toHaveBeenCalledWith([supportedFilter], []);
     });
   });
 

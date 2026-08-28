@@ -46,9 +46,16 @@ export abstract class EventRepository {
   /**
    * Count distinct events matching any of the filters (NIP-45).
    * Repositories may override this method to opt into COUNT support.
+   *
+   * @param filters Query filters
+   * @param excludedKinds Event kinds that must not contribute to the count
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async count(filters: Filter[]): Promise<number> {
+  async count(
+    filters: Filter[],
+    excludedKinds: number[] = [],
+  ): Promise<number> {
+    void filters;
+    void excludedKinds;
     throw new Error('unsupported: COUNT is not supported by this repository');
   }
 

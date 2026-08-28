@@ -11,7 +11,7 @@ export class FilterUtils {
 
   static canIncludeEncryptedDirectMessageKind(filter: Filter): boolean {
     return (
-      filter.kinds === undefined ||
+      !filter.kinds?.length ||
       filter.kinds.includes(EventKind.ENCRYPTED_DIRECT_MESSAGE)
     );
   }

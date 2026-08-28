@@ -4,6 +4,7 @@ import {
   ConsoleLoggerService,
   Event,
   EventId,
+  EventKind,
   EventRepository,
   EventUtils,
   Filter,
@@ -242,13 +243,16 @@ export class NostrRelay {
     filters: Filter[],
   ): Promise<HandleCountMessageResult> {
     try {
-      const count = await this.countEvents(filters);
+      const count = await this.countEvents(filters, ctx.pubkey);
       ctx.sendMessage(createOutgoingCountMessage(queryId, count));
       return { count };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'error: unknown';
       ctx.sendMessage(createOutgoingClosedMessage(queryId, message));
-      return { count: 0 };
+      if (error instanceof UnauthenticatedError) {
+        ctx.sendMessage(createOutgoingAuthMessage(ctx.id));
+      }
+      return { error: message };
     }
   }
 
@@ -371,18 +375,32 @@ export class NostrRelay {
   }
 
   /** Count distinct stored events matching any filter (NIP-45). */
-  async countEvents(filters: Filter[]): Promise<number> {
+  async countEvents(filters: Filter[], pubkey?: string): Promise<number> {
     if (
       this.hostname &&
-      filters.some(filter =>
-        FilterUtils.canIncludeEncryptedDirectMessageKind(filter),
-      )
+      filters.some(filter => FilterUtils.hasEncryptedDirectMessageKind(filter))
     ) {
       throw new Error(
         'restricted: encrypted direct message counts are not supported',
       );
     }
-    return await this.eventService.count(filters);
+
+    if (
+      this.hostname &&
+      !pubkey &&
+      filters.some(filter =>
+        FilterUtils.canIncludeEncryptedDirectMessageKind(filter),
+      )
+    ) {
+      throw new UnauthenticatedError(
+        "restricted: we can't serve counts that may include DMs to unauthenticated users, does your client implement NIP-42?",
+      );
+    }
+
+    const excludedKinds = this.hostname
+      ? [EventKind.ENCRYPTED_DIRECT_MESSAGE]
+      : [];
+    return await this.eventService.count(filters, excludedKinds);
   }
 
   private getClientContext(client: Client, ip?: string): ClientContext {

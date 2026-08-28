@@ -665,27 +665,30 @@ describe('EventRepositorySqlite', () => {
       ).toBe(2);
     });
 
-    it('should honor explicit limits and empty filter lists', async () => {
+    it('should ignore explicit limits and handle empty filter lists', async () => {
       expect(
         await eventRepository.count([
           { kinds: [EventKind.TEXT_NOTE], limit: 1 },
         ]),
-      ).toBe(1);
+      ).toBe(2);
       expect(await eventRepository.count([])).toBe(0);
     });
 
-    it('should reject filters with more than two tag attributes', async () => {
-      await expect(
-        eventRepository.count([
+    it('should skip filters with more than two tag attributes', async () => {
+      expect(
+        await eventRepository.count([
           {
             '#e': ['event'],
             '#p': ['pubkey'],
             '#t': ['nostr'],
           },
+          { kinds: [EventKind.TEXT_NOTE] },
         ]),
-      ).rejects.toThrow(
-        'unsupported: filters with more than two tag attributes are not supported',
-      );
+      ).toBe(2);
+    });
+
+    it('should exclude requested kinds from the count', async () => {
+      expect(await eventRepository.count([{}], [EventKind.TEXT_NOTE])).toBe(1);
     });
   });
 
