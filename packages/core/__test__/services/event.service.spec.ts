@@ -144,6 +144,16 @@ describe('eventService', () => {
     });
   });
 
+  describe('count', () => {
+    it('should return the repository count', async () => {
+      const filters = [{ kinds: [EventKind.TEXT_NOTE] }];
+      jest.spyOn(eventRepository, 'count').mockResolvedValue(2);
+
+      expect(await eventService.count(filters)).toBe(2);
+      expect(eventRepository.count).toHaveBeenCalledWith(filters);
+    });
+  });
+
   describe('handleEvent', () => {
     it('should directly return if event is authentication', async () => {
       expect(

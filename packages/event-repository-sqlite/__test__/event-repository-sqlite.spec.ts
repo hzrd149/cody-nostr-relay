@@ -673,6 +673,20 @@ describe('EventRepositorySqlite', () => {
       ).toBe(1);
       expect(await eventRepository.count([])).toBe(0);
     });
+
+    it('should reject filters with more than two tag attributes', async () => {
+      await expect(
+        eventRepository.count([
+          {
+            '#e': ['event'],
+            '#p': ['pubkey'],
+            '#t': ['nostr'],
+          },
+        ]),
+      ).rejects.toThrow(
+        'unsupported: filters with more than two tag attributes are not supported',
+      );
+    });
   });
 
   describe('deleteByDeletionRequest', () => {
